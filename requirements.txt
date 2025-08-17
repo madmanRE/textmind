@@ -1,0 +1,8 @@
+pandas
+numpy
+streamlit
+requests
+beautifulsoup4
+torch
+sentence-transformers
+openai
