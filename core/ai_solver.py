@@ -1,9 +1,12 @@
 import os
+import streamlit as st
 from dataclasses import asdict
 
 from openai import OpenAI
 
 OPENAI_KEY = os.getenv("OPENAI_KEY")
+if not OPENAI_KEY:
+    OPENAI_KEY = st.secrets["OPENAI_KEY"]
 
 
 def analyze_results(MY_DOCUMENT, semantic_gaps, keyword_list, zone_relevance):
