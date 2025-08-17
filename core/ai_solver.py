@@ -4,8 +4,9 @@ from dataclasses import asdict
 
 from openai import OpenAI
 
-OPENAI_KEY = os.getenv("OPENAI_KEY")
-if not OPENAI_KEY:
+try:
+    OPENAI_KEY = os.getenv("OPENAI_KEY")
+except:
     OPENAI_KEY = st.secrets["OPENAI_KEY"]
 
 
