@@ -3,7 +3,7 @@ import torch
 from sentence_transformers import SentenceTransformer, util
 
 # Загружаем модель
-MODEL = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+MODEL = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2") # paraphrase-multilingual-mpnet-base-v2
 ZONES = [
     "title",
     "h1",

@@ -4,8 +4,6 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 
-USER_AGENT = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/W.X.Y.Z Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
-
 
 @dataclass
 class URLData:
@@ -46,11 +44,11 @@ def extract_url_path(url):
     return path_text.replace("/", " ").replace("-", " ").replace("_", " ")
 
 
-def build_url_data(url_str, row_html):
+def build_url_data(url_str, row_html, exclude_tags_list):
     soup = BeautifulSoup(row_html, "html.parser")
 
     # Удаляем мусор
-    for tag in soup(["script", "style", "noscript", "footer", "header", "nav"]):
+    for tag in soup(exclude_tags_list):
         tag.extract()
 
     url_data = URLData()
@@ -127,20 +125,20 @@ def build_url_data(url_str, row_html):
     return url_data
 
 
-def parse_url(u):
+def parse_url(u, user_agent, exclude_tags_list):
     url_data = URLData(url=u)
     try:
         r = requests.get(
             u,
             headers={
                 "Accept-Charset": "utf-8",
-                "User-Agent": USER_AGENT,
+                "User-Agent": user_agent,
             },
             timeout=10,
             allow_redirects=True,
         )
         if r.status_code == 200:
-            url_data = build_url_data(u, r.text)
+            url_data = build_url_data(u, r.text, exclude_tags_list)
         else:
             print(f"Не удалось получить страницу {u}: статус {r.status_code}")
     except requests.RequestException as e:
@@ -148,9 +146,9 @@ def parse_url(u):
     return url_data
 
 
-def parse_urls(url_list):
+def parse_urls(url_list, user_agent, exclude_tags_list):
     results = []
     for u in url_list:
-        url_data = parse_url(u)
+        url_data = parse_url(u, user_agent, exclude_tags_list)
         results.append(url_data)
     return results
