@@ -1,9 +1,12 @@
 import re
+
 import torch
 from sentence_transformers import SentenceTransformer, util
 
 # Загружаем модель
-MODEL = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2") # paraphrase-multilingual-mpnet-base-v2
+MODEL = SentenceTransformer(
+    "paraphrase-multilingual-MiniLM-L12-v2"
+)  # paraphrase-multilingual-mpnet-base-v2
 ZONES = [
     "title",
     "h1",
@@ -25,7 +28,7 @@ def normalize_text(text):
 def chunk_text(text, max_tokens=200):
     words = text.split()
     for i in range(0, len(words), max_tokens):
-        yield " ".join(words[i: i + max_tokens])
+        yield " ".join(words[i : i + max_tokens])
 
 
 def embed_long_text(text, model, max_tokens=200):
