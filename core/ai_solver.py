@@ -29,7 +29,7 @@ def generate_completion(
 ) -> str:
     client = get_openai_client()
     completion = client.chat.completions.create(
-        model="deepseek/deepseek-r1:free",
+        model="x-ai/grok-4-fast:free",
         messages=messages,
         temperature=temperatura,
     )
