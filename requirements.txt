@@ -6,3 +6,4 @@ beautifulsoup4
 torch
 sentence-transformers
 openai
+altair<5
