@@ -15,7 +15,7 @@ class URLData:
     subheadings: list[str] | None = None
     hrefs: list[str] | None = None
     structures: list[str] | None = None
-    text: str | None = None
+    # text: str | None = None
     word_count: int | None = None
 
 
