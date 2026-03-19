@@ -19,7 +19,7 @@ OPENAI_KEY = get_openai_key()
 @lru_cache
 def get_openai_client() -> OpenAI:
     return OpenAI(
-        base_url="https://openrouter.ai/api/v1",
+        base_url="https://api.openai.com/v1/chat/completions", # https://openrouter.ai/api/v1
         api_key=get_openai_key(),
     )
 
@@ -29,7 +29,7 @@ def generate_completion(
 ) -> str:
     client = get_openai_client()
     completion = client.chat.completions.create(
-        model="openai/gpt-oss-20b:free",
+        model="gpt-5.4",
         messages=messages,
         temperature=temperatura,
     )
