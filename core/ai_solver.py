@@ -19,7 +19,7 @@ OPENAI_KEY = get_openai_key()
 @lru_cache
 def get_openai_client() -> OpenAI:
     return OpenAI(
-        base_url="https://api.openai.com/v1/chat/completions", # https://openrouter.ai/api/v1
+        base_url="https://api.openai.com/v1", # https://openrouter.ai/api/v1
         api_key=get_openai_key(),
     )
 
