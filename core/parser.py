@@ -100,7 +100,7 @@ def build_url_data(url_str, row_html, exclude_tags_list):
                 text_parts.append(txt)
 
     full_text = " ".join(text_parts)
-    url_data.text = full_text
+    # url_data.text = full_text
     url_data.word_count = len(full_text.split())
 
     # --- СТРУКТУРЫ: списки и таблицы ---
