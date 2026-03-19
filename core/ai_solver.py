@@ -29,7 +29,7 @@ def generate_completion(
 ) -> str:
     client = get_openai_client()
     completion = client.chat.completions.create(
-        model="nvidia/nemotron-3-super-120b-a12b:free",
+        model="openai/gpt-oss-20b:free",
         messages=messages,
         temperature=temperatura,
     )
