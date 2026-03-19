@@ -100,7 +100,13 @@ def run_analysis(
 
 def display_results(zone_relevance, semantics_gaps, results):
     st.subheader("Зональная релевантность ТОПу")
-    df = pd.DataFrame.from_dict(zone_relevance, orient="index", columns=["relevance"])
+    df = (
+    pd.DataFrame.from_dict(zone_relevance, orient="index", columns=["relevance"])
+        .assign(relevance=lambda x: pd.to_numeric(x["relevance"], errors="coerce"))
+        .dropna()
+        .astype({"relevance": "float64"})
+    )
+    
     st.bar_chart(df.sort_values("relevance", ascending=True))
 
     st.subheader("Семантические разрывы")
