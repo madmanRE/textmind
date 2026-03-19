@@ -13,7 +13,7 @@ ZONES = [
     "subheadings",
     "hrefs",
     "first_500_chars",
-    "text",
+    # "text",
     "url_as_text",
     "structures",
 ]
