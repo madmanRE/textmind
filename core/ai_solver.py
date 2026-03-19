@@ -29,7 +29,7 @@ def generate_completion(
 ) -> str:
     client = get_openai_client()
     completion = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model="gpt-5.4",
         messages=messages,
         temperature=temperatura,
     )
