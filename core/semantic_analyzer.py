@@ -41,9 +41,11 @@ def embed_long_text(text, model, max_tokens=200):
 def get_zone_embeddings(docs, zone, model, max_tokens=200):
     """Считает эмбеддинги для конкретной зоны (например 'h1', 'title') с учетом длинных текстов"""
     embeddings = []
+
     for d in docs:
         value = getattr(d, zone, None)
-        if not value:
+
+        if not value or (isinstance(value, list) and not any(value)):
             continue
 
         if isinstance(value, list):
@@ -53,15 +55,33 @@ def get_zone_embeddings(docs, zone, model, max_tokens=200):
 
         text = normalize_text(text)
 
+        if not text.strip():
+            continue
+
         if len(text.split()) > max_tokens:
             emb = embed_long_text(text, model, max_tokens)
         else:
             emb = model.encode(text, convert_to_tensor=True)
 
+        if emb is None:
+            continue
+
+        if len(emb.shape) > 1:
+            emb = emb.squeeze()
+
+        if len(emb.shape) == 0 or emb.shape[0] == 0:
+            continue
+
         embeddings.append(emb)
 
     if not embeddings:
         return None
+
+    # 🔴 проверка размерности (очень полезно при смене моделей)
+    dims = [e.shape[0] for e in embeddings]
+    if len(set(dims)) != 1:
+        raise ValueError(f"Embedding dims mismatch: {dims}")
+
     return torch.stack(embeddings)
 
 
