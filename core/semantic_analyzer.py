@@ -14,8 +14,10 @@ ZONES = [
     "structures",
 ]
 
+# 🔥 кеш эмбеддингов
+EMB_CACHE = {}
 
-# ------------------ TEXT UTILS ------------------
+# ------------------ TEXT ------------------
 
 def normalize_text(text):
     text = str(text).lower().strip()
@@ -23,51 +25,48 @@ def normalize_text(text):
     return text
 
 
-def chunk_text(text, max_tokens=200):
-    words = text.split()
-    for i in range(0, len(words), max_tokens):
-        yield " ".join(words[i:i + max_tokens])
+# ------------------ ENCODE ------------------
+
+def encode_batch(texts, model, prefix="passage:", batch_size=32):
+    texts = [normalize_text(t) for t in texts if t and str(t).strip()]
+    if not texts:
+        return []
+
+    inputs = [f"{prefix} {t}" for t in texts]
+
+    embeddings = model.encode(
+        inputs,
+        convert_to_tensor=True,
+        batch_size=batch_size,
+        show_progress_bar=False,
+    )
+
+    return embeddings
 
 
-# ------------------ SAFE ENCODE ------------------
-
-def safe_encode(text, model, max_tokens=200, prefix="passage:"):
+def cached_encode(text, model, prefix="passage:"):
     text = normalize_text(text)
-
     if not text:
         return None
 
-    # E5 требует префиксы
-    text = f"{prefix} {text}"
+    key = f"{prefix}:{text}"
 
-    if len(text.split()) > max_tokens:
-        chunks = list(chunk_text(text, max_tokens))
-        if not chunks:
-            return None
+    if key in EMB_CACHE:
+        return EMB_CACHE[key]
 
-        emb = model.encode(chunks, convert_to_tensor=True)
+    emb = model.encode(f"{prefix} {text}", convert_to_tensor=True)
 
-        if emb is None or len(emb) == 0:
-            return None
+    if emb is not None and len(emb.shape) > 1:
+        emb = emb.squeeze()
 
-        return emb.mean(dim=0)
-
-    else:
-        emb = model.encode(text, convert_to_tensor=True)
-
-        if emb is None:
-            return None
-
-        if len(emb.shape) > 1:
-            emb = emb.squeeze()
-
-        return emb
+    EMB_CACHE[key] = emb
+    return emb
 
 
 # ------------------ ZONE EMBEDDINGS ------------------
 
-def get_zone_embeddings(docs, zone, model, max_tokens=200):
-    embeddings = []
+def get_zone_embeddings(docs, zone, model):
+    texts = []
 
     for d in docs:
         value = getattr(d, zone, None)
@@ -76,30 +75,29 @@ def get_zone_embeddings(docs, zone, model, max_tokens=200):
             continue
 
         text = " ".join(value) if isinstance(value, list) else str(value)
+        text = normalize_text(text)
 
-        emb = safe_encode(text, model, max_tokens)
+        if text:
+            texts.append(text)
 
-        if emb is not None and emb.shape[0] > 0:
-            embeddings.append(emb)
-
-    if not embeddings:
+    if not texts:
         return None
 
-    # проверка размерности
-    dims = [e.shape[0] for e in embeddings]
-    if len(set(dims)) != 1:
-        return None  # мягкий фейл вместо краша
+    embeddings = encode_batch(texts, model)
 
-    return torch.stack(embeddings)
+    if len(embeddings) == 0:
+        return None
+
+    return embeddings
 
 
-# ------------------ COMPARE ZONES ------------------
+# ------------------ COMPARE ------------------
 
-def compare_zones(my_doc, competitors, zones, model, max_tokens=200):
+def compare_zones(my_doc, competitors, zones, model):
     results = {}
 
     for zone in zones:
-        comp_embeds = get_zone_embeddings(competitors, zone, model, max_tokens)
+        comp_embeds = get_zone_embeddings(competitors, zone, model)
         if comp_embeds is None:
             continue
 
@@ -111,7 +109,7 @@ def compare_zones(my_doc, competitors, zones, model, max_tokens=200):
 
         my_text = " ".join(my_value) if isinstance(my_value, list) else str(my_value)
 
-        my_embed = safe_encode(my_text, model, max_tokens)
+        my_embed = cached_encode(my_text, model)
 
         if my_embed is None:
             continue
@@ -122,10 +120,6 @@ def compare_zones(my_doc, competitors, zones, model, max_tokens=200):
     return results
 
 
-def compute_zone_relevance(MY_DOCUMENT, TOP_COMPETITORS, zones=ZONES, model=MODEL):
-    return compare_zones(MY_DOCUMENT, TOP_COMPETITORS, zones, model)
-
-
 # ------------------ SEMANTIC GAPS ------------------
 
 def find_semantic_gaps(
@@ -134,40 +128,45 @@ def find_semantic_gaps(
     keywords,
     zones,
     model,
-    max_tokens=200,
     top_n=3,
     min_sim=0.3,
 ):
-    # 🔥 keywords как query (важно для e5)
-    kw_embeds = [
-        safe_encode(k, model, prefix="query:")
-        for k in keywords
-    ]
-    kw_embeds = [k for k in kw_embeds if k is not None]
+    # 🔥 keywords batch
+    kw_embeds = encode_batch(keywords, model, prefix="query:")
 
-    if not kw_embeds:
+    if len(kw_embeds) == 0:
         return {}
 
-    keywords_embedding = torch.stack(kw_embeds).mean(dim=0)
+    keywords_embedding = kw_embeds.mean(dim=0)
 
-    # 🔥 полный текст документа
-    my_full_parts = []
+    # 🔥 полный текст
+    my_full_text = []
 
     for zone in zones:
         val = getattr(my_doc, zone, None)
         if val:
-            my_full_parts.append(" ".join(val) if isinstance(val, list) else str(val))
+            my_full_text.append(" ".join(val) if isinstance(val, list) else str(val))
 
-    my_full_text = normalize_text(" ".join(my_full_parts))
+    my_full_text = normalize_text(" ".join(my_full_text))
+    my_full_emb = cached_encode(my_full_text, model)
 
-    my_full_emb = safe_encode(my_full_text, model, max_tokens)
     if my_full_emb is None:
         return {}
+
+    # 🔥 заранее считаем мои зоны
+    my_zone_embeds = {}
+
+    for zone in zones:
+        val = getattr(my_doc, zone, None)
+        if val:
+            text = " ".join(val) if isinstance(val, list) else str(val)
+            my_zone_embeds[zone] = cached_encode(text, model)
 
     results = {}
 
     for zone in zones:
-        zone_items = []
+        texts = []
+        meta = []
 
         for competitor in competitors:
             zone_value = getattr(competitor, zone, None)
@@ -179,57 +178,55 @@ def find_semantic_gaps(
                 zone_value = [zone_value]
 
             for item in zone_value:
-                item_emb = safe_encode(item, model, max_tokens)
+                t = normalize_text(item)
+                if t:
+                    texts.append(t)
+                    meta.append((competitor.url, item))
 
-                if item_emb is None:
-                    continue
+        if not texts:
+            continue
 
-                keywords_sim = util.cos_sim(item_emb, keywords_embedding).item()
+        # 🔥 БАТЧ!
+        embeddings = encode_batch(texts, model)
 
-                if keywords_sim < min_sim:
-                    continue
+        zone_items = []
 
-                # мой zone
-                my_zone_value = getattr(my_doc, zone, None)
+        for emb, (url, raw_text) in zip(embeddings, meta):
+            keywords_sim = util.cos_sim(emb, keywords_embedding).item()
 
-                if my_zone_value:
-                    my_zone_text = (
-                        " ".join(my_zone_value)
-                        if isinstance(my_zone_value, list)
-                        else str(my_zone_value)
-                    )
+            if keywords_sim < min_sim:
+                continue
 
-                    my_zone_emb = safe_encode(my_zone_text, model, max_tokens)
+            my_zone_emb = my_zone_embeds.get(zone)
 
-                    if my_zone_emb is not None:
-                        my_doc_sim_zone = util.cos_sim(item_emb, my_zone_emb).item()
-                        my_zone_kw_sim = util.cos_sim(
-                            my_zone_emb, keywords_embedding
-                        ).item()
-                    else:
-                        my_doc_sim_zone = 0.0
-                        my_zone_kw_sim = 0.0
-                else:
-                    my_doc_sim_zone = 0.0
-                    my_zone_kw_sim = 0.0
+            if my_zone_emb is not None:
+                my_doc_sim_zone = util.cos_sim(emb, my_zone_emb).item()
+                my_zone_kw_sim = util.cos_sim(my_zone_emb, keywords_embedding).item()
+            else:
+                my_doc_sim_zone = 0.0
+                my_zone_kw_sim = 0.0
 
-                my_doc_sim_full = util.cos_sim(item_emb, my_full_emb).item()
+            my_doc_sim_full = util.cos_sim(emb, my_full_emb).item()
 
-                zone_items.append(
-                    {
-                        "competitor": competitor.url,
-                        "item": item,
-                        "keywords_sim": keywords_sim,
-                        "my_doc_kw_sim": my_zone_kw_sim,
-                        "my_doc_sim_zone": my_doc_sim_zone,
-                        "my_doc_sim_full": my_doc_sim_full,
-                    }
-                )
+            zone_items.append(
+                {
+                    "competitor": url,
+                    "item": raw_text,
+                    "keywords_sim": keywords_sim,
+                    "my_doc_kw_sim": my_zone_kw_sim,
+                    "my_doc_sim_zone": my_doc_sim_zone,
+                    "my_doc_sim_full": my_doc_sim_full,
+                }
+            )
 
         zone_items.sort(key=lambda x: x["keywords_sim"], reverse=True)
         results[zone] = zone_items[:top_n]
 
     return results
+
+
+def compute_zone_relevance(MY_DOCUMENT, TOP_COMPETITORS, zones=ZONES, model=MODEL):
+    return compare_zones(MY_DOCUMENT, TOP_COMPETITORS, zones, model)
 
 
 def compute_semantics_gaps(
