@@ -5,7 +5,8 @@ from sentence_transformers import SentenceTransformer, util
 
 # Загружаем модель
 MODEL = SentenceTransformer(
-    "paraphrase-multilingual-MiniLM-L12-v2"
+    "intfloat/multilingual-e5-large"
+   #"paraphrase-multilingual-MiniLM-L12-v2"
 )  # paraphrase-multilingual-mpnet-base-v2
 ZONES = [
     "title",
@@ -34,7 +35,7 @@ def chunk_text(text, max_tokens=200):
 def embed_long_text(text, model, max_tokens=200):
     chunks = list(chunk_text(text, max_tokens))
     embeddings = model.encode(chunks, convert_to_tensor=True)
-    return embeddings.mean(dim=0)  # усредняем чанки в один вектор
+    return embeddings.mean(dim=0).values  # усредняем чанки в один вектор
 
 
 def get_zone_embeddings(docs, zone, model, max_tokens=200):
@@ -106,7 +107,8 @@ def find_semantic_gaps(
     my_doc, competitors, keywords, zones, model, max_tokens=200, top_n=3, min_sim=0.3
 ):
     # Эмбеддинг ключей
-    keywords_embedding = model.encode(" ".join(keywords), convert_to_tensor=True)
+    kw_embeds = model.encode(keywords, convert_to_tensor=True)
+    keywords_embedding = kw_embeds.mean(dim=0)
 
     # Эмбеддинг всего текста моего документа
     my_full_text = []
